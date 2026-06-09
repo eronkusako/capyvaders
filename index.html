@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>カピバラUFO温泉防衛線 - Capybara UFO Onsen Defense</title>
+    <!-- Tailwind CSS for Modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* レトロフォントのインポート */
+        @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+        .font-pixel {
+            font-family: 'DotGothic16', sans-serif;
+        }
+        /* キャンバスをアスペクト比3:4を維持しつつ画面いっぱいに広げる */
+        #gameCanvas {
+            aspect-ratio: 3 / 4;
+            image-rendering: pixelated;
+            touch-action: none; /* スマホでのスクロールやダブルタップズームを完全に防止 */
+            width: 75vh;
+            height: 100vh;
+            max-width: 100vw;
+            max-height: 133.33vw; /* 3:4 */
+        }
+    </style>
+</head>
+<body class="bg-stone-950 text-stone-100 font-sans h-screen w-screen flex items-center justify-center p-0 m-0 overflow-hidden select-none">
+
+    <!-- ゲーム画面コンテナ -->
+    <div class="relative w-full h-full flex items-center justify-center bg-black overflow-hidden shadow-2xl">
+        <canvas id="gameCanvas" width="600" height="800" class="block bg-gradient-to-b from-slate-900 via-stone-900 to-amber-950"></canvas>
+
+        <!-- スタート画面オーバーレイ (Canvasサイズにジャストフィット) -->
+        <div id="startScreen" class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-center p-4 md:p-6 transition-all duration-300 z-10">
+            <div class="bg-stone-900/95 border-2 border-cyan-600 p-6 md:p-8 rounded-2xl max-w-sm w-[90%] shadow-2xl backdrop-blur-sm">
+                <h2 class="text-2xl md:text-3xl font-bold font-pixel text-cyan-400 mb-1">カピバラUFO 温泉防衛線</h2>
+                <p class="text-[10px] md:text-xs text-stone-400 mb-5 font-pixel">〜 天敵襲来！指一本のUFO旋風で温泉を守り抜け！ 〜</p>
+                
+                <!-- カピバラ紹介 -->
+                <div class="flex justify-center mb-5">
+                    <div class="relative bg-stone-800 p-3 rounded-xl border border-stone-700 flex items-center gap-3 w-full">
+                        <img id="introCapybaraImg" class="w-14 h-14 object-contain" alt="カピバラUFO" />
+                        <div class="text-left">
+                            <p class="text-xs font-bold text-stone-200 font-pixel">源泉パトロール隊長 カピバラ</p>
+                            <p class="text-[10px] text-stone-400 font-pixel">搭乗機: 湯桶型ホバーUFO</p>
+                            <p class="text-[10px] text-cyan-400 font-pixel">攻撃: お湯泡ビーム(タップ＆長押し)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3 font-pixel">
+                    <button id="startButton" class="w-full bg-cyan-600 hover:bg-cyan-500 text-stone-100 font-bold py-2.5 px-6 rounded-lg text-base tracking-wide transition-all btn-active shadow-lg border-b-4 border-cyan-800">
+                        防衛任務を開始する (音声をON)
+                    </button>
+                    <p class="text-[9px] md:text-xs text-stone-400 mt-2 md:mt-4 leading-relaxed text-left bg-stone-950/60 p-3 rounded-lg border border-stone-800">
+                        <span class="text-cyan-400 font-bold">【スマートフォン操作方法】</span><br>
+                        👉 <span class="text-white">画面をタッチしてスライド</span> : UFOがなめらかに移動！<br>
+                        👉 <span class="text-white">タッチしている間</span> : 温泉泡ビームを自動連射！<br>
+                        ⏸ <span class="text-white">右上の「一時停止」</span> : ゲームのポーズと再開<br>
+                        <span class="text-stone-500 font-bold">【PCの操作方法】</span><br>
+                        🖱 <span class="text-stone-400">マウスクリック＆ドラッグ</span>で同様に移動と連射！<br>
+                        ⌨ <span class="text-stone-400">[←][→]キー</span>、<span class="text-stone-400">[スペース]で手動連射</span>、<span class="text-stone-400">[P]でポーズ</span>も可能。
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ゲームオーバー / クリア画面オーバーレイ (非表示) -->
+        <div id="endScreen" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center text-center p-6 hidden z-10 transition-all duration-300">
+            <div class="bg-stone-900 border-2 border-stone-700 p-8 rounded-2xl max-w-sm w-[90%] shadow-2xl">
+                <h2 id="endTitle" class="text-3xl font-bold font-pixel mb-2">防衛失敗</h2>
+                <p id="endSub" class="text-stone-400 text-sm mb-6 font-pixel">温泉は天敵たちに占領されてしまった...</p>
+                
+                <div class="bg-stone-800 p-4 rounded-xl border border-stone-700 mb-6 font-pixel">
+                    <p class="text-stone-400 text-sm">防衛スコア</p>
+                    <p id="endScore" class="text-3xl font-bold text-cyan-400">0</p>
+                    <p id="endWave" class="text-xs text-stone-500 mt-1">耐え抜いたウェーブ: 1</p>
+                </div>
+
+                <button id="restartButton" class="w-full bg-cyan-600 hover:bg-cyan-500 text-stone-100 font-bold py-3 px-6 rounded-lg text-lg tracking-wide transition-all btn-active shadow-lg border-b-4 border-cyan-800 font-pixel">
+                    もう一度温泉を守る
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ゲームロジック実装 -->
+    <script>
+        // --- 定数定義 (スマートフォン向け縦長解像度に変更) ---
+        const CANVAS_WIDTH = 600;
+        const CANVAS_HEIGHT = 800;
+
+        // --- DOM要素の取得 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const endScreen = document.getElementById('endScreen');
+        const endTitle = document.getElementById('endTitle');
+        const endSub = document.getElementById('endSub');
+        const endScore = document.getElementById('endScore');
+        const endWave = document.getElementById('endWave');
+        const restartButton = document.getElementById('restartButton');
+        const introCapybaraImg = document.getElementById('introCapybaraImg');
+
+        // --- サウンドシステム (Web Audio API) ---
+        let audioCtx = null;
+        let soundEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // レトロフューチャー和風効果音の再生
+        function playSound(type) {
+            if (!soundEnabled || !audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'shoot') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(1500, now + 0.15);
+                
+                const mod = audioCtx.createOscillator();
+                const modGain = audioCtx.createGain();
+                mod.frequency.value = 45;
+                modGain.gain.value = 150;
+                mod.connect(modGain);
+                modGain.connect(osc.frequency);
+                mod.start();
+                mod.stop(now + 0.15);
+
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'explosion') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'damage') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.linearRampToValueAtTime(40, now + 0.25);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'heal') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(554, now + 0.08);
+                osc.frequency.setValueAtTime(659, now + 0.16);
+                osc.frequency.exponentialRampToValueAtTime(1100, now + 0.3);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.35);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } else if (type === 'gameover') {
+                const notes = [329, 293, 261, 196];
+                const durations = [0.2, 0.2, 0.2, 0.6];
+                let time = now;
+                notes.forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = 'sine';
+                    o.frequency.setValueAtTime(freq, time);
+                    g.gain.setValueAtTime(0.2, time);
+                    g.gain.linearRampToValueAtTime(0, time + durations[idx]);
+                    o.start(time);
+                    o.stop(time + durations[idx]);
+                    time += durations[idx] + 0.05;
+                });
+            } else if (type === 'clear') {
+                const notes = [523, 659, 783, 1046];
+                const durations = [0.1, 0.1, 0.1, 0.5];
+                let time = now;
+                notes.forEach((freq, idx) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.type = 'triangle';
+                    o.frequency.setValueAtTime(freq, time);
+                    g.gain.setValueAtTime(0.15, time);
+                    g.gain.linearRampToValueAtTime(0, time + durations[idx]);
+                    o.start(time);
+                    o.stop(time + durations[idx]);
+                    time += durations[idx] + 0.03;
+                });
+            }
+        }
+
+        // --- ゆるカワなSFアセット（SVG）の動的構築 ---
+
+        // 1. カピバラ温泉UFO
+        const capybaraUfoSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60">
+            <ellipse cx="30" cy="54" rx="18" ry="3.5" fill="#020617" opacity="0.4" />
+            <ellipse cx="30" cy="46" rx="7" ry="2" fill="#38bdf8" />
+            <polygon points="25,46 30,53 35,46" fill="#0ea5e9" opacity="0.8" />
+            <polygon points="27,46 30,51 33,46" fill="#e0f2fe" opacity="0.9" />
+            <path d="M 17 33 A 13 13 0 0 1 43 33 Z" fill="#e0f2fe" opacity="0.55" stroke="#bae6fd" stroke-width="1.2" />
+            <path d="M 18 24 C 18 18, 38 17, 44 24 C 47 28, 45 33, 42 35 C 37 38, 20 38, 18 31 Z" fill="#9c6644" />
+            <path d="M 40 29 C 44 29, 45 31, 45 33 C 45 35, 41 36, 37 36" stroke="#78350f" stroke-width="1.5" fill="none" />
+            <ellipse cx="42" cy="32" rx="1.3" ry="1.9" fill="#3f1a04" />
+            <ellipse cx="30" cy="26" rx="3.5" ry="2.5" fill="#ffffff" />
+            <circle cx="30.5" cy="26.5" r="1.6" fill="#1e1b18" />
+            <path d="M 26 25 Q 30 22 34 25" stroke="#451a03" stroke-width="2" fill="none" />
+            <ellipse cx="19" cy="24" rx="3" ry="4" fill="#78350f" transform="rotate(-15 19 24)" />
+            <circle cx="28" cy="15" r="5" fill="#facc15" />
+            <path d="M 28 10 Q 29 8 31 9" stroke="#16a34a" stroke-width="1.2" fill="none" />
+            <ellipse cx="31" cy="8.5" rx="2" ry="0.8" fill="#22c55e" transform="rotate(-20 31 8.5)" />
+            <ellipse cx="30" cy="41" rx="19" ry="7.5" fill="#d97706" stroke="#78350f" stroke-width="1" />
+            <ellipse cx="30" cy="39" rx="17" ry="5.5" fill="#fef08a" />
+            <path d="M 11.5 41.5 Q 30 47.5 48.5 41.5" stroke="#22d3ee" stroke-width="2.2" fill="none" />
+            <path d="M 27 41 Q 28.5 38 27.5 36 M 30 41 Q 31.5 38 30.5 36 M 33 41 Q 34.5 38 33.5 36" stroke="#ef4444" stroke-width="1.3" fill="none" />
+            <ellipse cx="30.5" cy="42" rx="6" ry="1.2" fill="#ef4444" opacity="0.7" />
+        </svg>`);
+
+        // 2. 敵：コンドル
+        const condorSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+            <path d="M 5 20 Q 25 10 45 20 Q 25 35 5 20 Z" fill="#334155" />
+            <path d="M 10 21 Q 25 15 40 21 Q 25 28 10 21 Z" fill="#1e293b" />
+            <circle cx="25" cy="28" r="11" fill="#1e293b" />
+            <ellipse cx="25" cy="19" rx="7" ry="3" fill="#f1f5f9" />
+            <circle cx="25" cy="15" r="6" fill="#fda4af" />
+            <polygon points="25,14 21,20 25,24 29,20" fill="#fbbf24" />
+            <circle cx="23" cy="13" r="1.2" fill="#000" />
+            <circle cx="27" cy="13" r="1.2" fill="#000" />
+            <polygon points="21,9 23,12 25,9 27,12 29,9 29,13 21,13" fill="#fbbf24" />
+        </svg>`);
+
+        // 3. 敵：ジャガー
+        const jaguarSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+            <circle cx="15" cy="16" r="6" fill="#d97706" />
+            <circle cx="15" cy="16" r="3" fill="#fef08a" />
+            <circle cx="35" cy="16" r="6" fill="#d97706" />
+            <circle cx="35" cy="16" r="3" fill="#fef08a" />
+            <circle cx="25" cy="28" r="14" fill="#f59e0b" />
+            <ellipse cx="25" cy="33" rx="9" ry="6" fill="#fef08a" />
+            <polygon points="16,22 22,24 20,26" fill="#000" />
+            <polygon points="34,22 28,24 30,26" fill="#000" />
+            <circle cx="19" cy="24" r="1" fill="#fff" />
+            <circle cx="31" cy="24" r="1" fill="#fff" />
+            <polygon points="25,29 22,27 28,27" fill="#1e293b" />
+            <path d="M 25 29 L 25 33 Q 25 35 23 34 M 25 33 Q 25 35 27 34" stroke="#1e293b" stroke-width="1.5" fill="none" />
+            <circle cx="16" cy="32" r="1.5" fill="#78350f" />
+            <circle cx="34" cy="32" r="1.5" fill="#78350f" />
+            <circle cx="25" cy="18" r="1.5" fill="#78350f" />
+            <circle cx="21" cy="19" r="1" fill="#78350f" />
+            <circle cx="29" cy="19" r="1" fill="#78350f" />
+        </svg>`);
+
+        // 4. 敵：ワニ
+        const alligatorSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+            <polygon points="15,20 18,12 21,20" fill="#065f46" />
+            <polygon points="25,18 28,10 31,18" fill="#065f46" />
+            <polygon points="32,20 35,12 38,20" fill="#065f46" />
+            <ellipse cx="25" cy="30" rx="15" ry="12" fill="#047857" />
+            <path d="M 12 32 Q 25 38 38 32" stroke="#064e3b" stroke-width="3" fill="none" />
+            <path d="M 12 32 Q 25 38 38 32 L 36 30 L 32 32 L 28 30 L 24 32 L 20 30 L 16 32 Z" fill="#f8fafc" />
+            <circle cx="18" cy="21" r="5" fill="#047857" />
+            <circle cx="18" cy="21" r="2.5" fill="#fbbf24" />
+            <circle cx="18" cy="21" r="1" fill="#000" />
+            <circle cx="32" cy="21" r="5" fill="#047857" />
+            <circle cx="32" cy="21" r="2.5" fill="#fbbf24" />
+            <circle cx="32" cy="21" r="1" fill="#000" />
+            <circle cx="23" cy="27" r="1" fill="#064e3b" />
+            <circle cx="27" cy="27" r="1" fill="#064e3b" />
+        </svg>`);
+
+        // 5. 敵：ヘビ
+        const snakeSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+            <path d="M 10 38 Q 25 45 40 38 Q 38 30 25 32 Q 12 30 15 24 Q 25 22 35 24" fill="none" stroke="#16a34a" stroke-width="6" stroke-linecap="round" />
+            <path d="M 12 38 Q 25 43 38 38 Q 35 32 25 34 Q 15 32 17 26" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" />
+            <ellipse cx="25" cy="18" rx="8" ry="6" fill="#16a34a" />
+            <ellipse cx="25" cy="19" rx="5" ry="3" fill="#4ade80" />
+            <path d="M 25 24 L 25 30 L 23 32 M 25 30 L 27 32" stroke="#dc2626" stroke-width="1.5" fill="none" />
+            <circle cx="22" cy="16" r="1.5" fill="#fbbf24" />
+            <circle cx="22" cy="16" r="0.7" fill="#000" />
+            <circle cx="28" cy="16" r="1.5" fill="#fbbf24" />
+            <circle cx="28" cy="16" r="0.7" fill="#000" />
+        </svg>`);
+
+        // 6. 回復アイテム：ハート入りのフレッシュ極上柚子
+        const heartYuzuSvg = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+            <circle cx="20" cy="22" r="13" fill="#facc15" stroke="#ca8a04" stroke-width="1.5" />
+            <path d="M 20 9 Q 22 5 25 6" stroke="#15803d" stroke-width="2" fill="none" />
+            <ellipse cx="25" cy="5.5" rx="4" ry="2" fill="#22c55e" transform="rotate(-15 25 5.5)" />
+            <path d="M 20 18 C 20 18, 16 14, 16 17 C 16 20, 20 25, 20 25 C 20 25, 24 20, 24 17 C 24 14, 20 18, 20 18 Z" fill="#ef4444" />
+            <circle cx="15" cy="17" r="2" fill="#ffffff" opacity="0.8" />
+        </svg>`);
+
+        // アセット画像の読み込み
+        const playerImg = new Image();
+        playerImg.src = capybaraUfoSvg;
+
+        const condorImg = new Image();
+        condorImg.src = condorSvg;
+
+        const jaguarImg = new Image();
+        jaguarImg.src = jaguarSvg;
+
+        const alligatorImg = new Image();
+        alligatorImg.src = alligatorSvg;
+
+        const snakeImg = new Image();
+        snakeImg.src = snakeSvg;
+
+        const heartYuzuImg = new Image();
+        heartYuzuImg.src = heartYuzuSvg;
+
+        // スタート紹介画面へ新デザインSVGを連携
+        introCapybaraImg.src = capybaraUfoSvg;
+
+        // --- ゲームステート＆システム変数 ---
+        let gameActive = false;
+        let isPaused = false; // 一時停止フラグ
+        let score = 0;
+        let wave = 1;
+        let lives = 3;
+        let keys = {};
+        
+        // タッチ操作トラッキング変数
+        let isTouching = false;
+        let targetX = CANVAS_WIDTH / 2; // 目標となるUFOのX座標
+
+        // プレイヤー定義
+        const player = {
+            x: CANVAS_WIDTH / 2 - 30,
+            y: CANVAS_HEIGHT - 130, // 縦長画面（高さ800px）での下部配置
+            width: 60,
+            height: 60,
+            speed: 7.0,
+            lastShotTime: 0,
+            shootCooldown: 200,
+            invulnerableTime: 0
+        };
+
+        // 一時停止ボタンのCanvas上のレイアウト領域定義 (横幅に合わせて右端に配置)
+        const pauseBtnArea = {
+            x: CANVAS_WIDTH - 140,
+            y: 15,
+            width: 120,
+            height: 38
+        };
+
+        // 配列管理
+        let bullets = [];
+        let enemyBullets = [];
+        let enemies = [];
+        let steamParticles = [];
+        let splashParticles = [];
+        let items = []; // 落ちてくるアイテム配列
+        let floatingTexts = []; // 回復獲得時などの華やかな浮遊エフェクトテキスト
+
+        // 温泉に浮かぶ柚子 (縦長画面に合わせて再配置)
+        let onsenYuzus = [
+            { x: 100, y: CANVAS_HEIGHT - 22, size: 8, angle: 0, speed: 0.015, amp: 3 },
+            { x: 250, y: CANVAS_HEIGHT - 18, size: 9, angle: 1.5, speed: 0.012, amp: 2.5 },
+            { x: 400, y: CANVAS_HEIGHT - 25, size: 7, angle: 3, speed: 0.02, amp: 3.5 },
+            { x: 500, y: CANVAS_HEIGHT - 15, size: 8, angle: 0.8, speed: 0.014, amp: 3 }
+        ];
+
+        // 敵の移動パラメータ
+        let enemyDirection = 1;
+        let enemySpeedMultiplier = 1.0;
+        let enemyBaseSpeed = 1.1;
+
+        // --- 温泉の湯気パーティクルクラス ---
+        class SteamParticle {
+            constructor(initRandomY = false) {
+                this.x = Math.random() * CANVAS_WIDTH;
+                this.y = initRandomY ? (Math.random() * (CANVAS_HEIGHT - 100) + 100) : CANVAS_HEIGHT - 20;
+                this.size = Math.random() * 30 + 15;
+                this.speedY = -(Math.random() * 0.4 + 0.2);
+                this.speedX = Math.sin(Math.random() * Math.PI) * 0.15;
+                this.alpha = Math.random() * 0.10 + 0.02;
+                this.maxLife = Math.random() * 450 + 250;
+                this.life = this.maxLife;
+            }
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                this.life--;
+                this.alpha = (this.life / this.maxLife) * 0.12;
+                if (this.y < -50 || this.life <= 0) {
+                    this.reset();
+                }
+            }
+            reset() {
+                this.x = Math.random() * CANVAS_WIDTH;
+                this.y = CANVAS_HEIGHT - 20;
+                this.size = Math.random() * 30 + 15;
+                this.speedY = -(Math.random() * 0.4 + 0.2);
+                this.speedX = Math.sin(Math.random() * Math.PI) * 0.15;
+                this.alpha = Math.random() * 0.10 + 0.02;
+                this.maxLife = Math.random() * 450 + 250;
+                this.life = this.maxLife;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = '#f1f5f9';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // --- 水しぶき＆温泉のしずくパーティクルクラス ---
+        class SplashParticle {
+            constructor(x, y, color = '#38bdf8') {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed - 1.5;
+                this.radius = Math.random() * 3.5 + 1.5;
+                this.alpha = 1.0;
+                this.gravity = 0.15;
+                this.decay = Math.random() * 0.04 + 0.02;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += this.gravity;
+                this.alpha -= this.decay;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // 湯気の初期化
+        function initSteam() {
+            steamParticles = [];
+            for (let i = 0; i < 20; i++) {
+                steamParticles.push(new SteamParticle(true));
+            }
+        }
+
+        // --- キーボード入力イベント ---
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+            }
+            // PキーまたはEscapeキーでポーズ切り替え
+            if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && gameActive) {
+                togglePause();
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // --- ポーズ切り替えロジック (Canvas内部ポーズ対応) ---
+        function togglePause() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            if (!isPaused) {
+                initAudio(); // 音声の安全な再有効化
+            }
+        }
+
+        // --- スマートフォン＆マウス「どこでもスライド移動＆タップ攻撃」の処理 ---
+        function getCanvasPointerCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+            const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+            
+            // CSSによる拡大縮小を考慮してCanvas内部座標(600x800)へ変換
+            const x = (clientX - rect.left) * (CANVAS_WIDTH / rect.width);
+            const y = (clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
+            return { x, y };
+        }
+
+        // タッチ開始、マウスクリック開始
+        canvas.addEventListener('pointerdown', (e) => {
+            if (!gameActive) return;
+            e.preventDefault();
+
+            // スタートやエンド等のオーバーレイ表示中は無視
+            if (!startScreen.classList.contains('hidden') || !endScreen.classList.contains('hidden')) return;
+
+            const coords = getCanvasPointerCoords(e);
+
+            // 【一時停止ボタン】のタップ当たり判定
+            if (coords.x >= pauseBtnArea.x && coords.x <= pauseBtnArea.x + pauseBtnArea.width &&
+                coords.y >= pauseBtnArea.y && coords.y <= pauseBtnArea.y + pauseBtnArea.height) {
+                togglePause();
+                return;
+            }
+
+            if (isPaused) return; // 一時停止中はその他の入力をブロック
+
+            isTouching = true;
+            targetX = coords.x;
+            
+            // タッチした瞬間にすぐに温泉ビームを発射
+            firePlayerBullet();
+        });
+
+        // タッチ＆マウスの移動（ドラッグ）
+        canvas.addEventListener('pointermove', (e) => {
+            if (!gameActive || isPaused || !isTouching) return;
+            e.preventDefault();
+
+            const coords = getCanvasPointerCoords(e);
+            targetX = coords.x; // 目標座標を更新
+        });
+
+        // タッチ終了、マウスボタンを離したとき
+        const handlePointerUp = (e) => {
+            if (!gameActive) return;
+            isTouching = false;
+        };
+        canvas.addEventListener('pointerup', handlePointerUp);
+        canvas.addEventListener('pointercancel', handlePointerUp);
+        canvas.addEventListener('pointerleave', handlePointerUp);
+
+        // --- ゲーム開始・初期化 ---
+        function startGame() {
+            initAudio();
+            initSteam();
+            score = 0;
+            wave = 1;
+            lives = 3;
+            bullets = [];
+            enemyBullets = [];
+            splashParticles = [];
+            items = []; 
+            floatingTexts = []; 
+            isPaused = false;
+            isTouching = false;
+            player.x = CANVAS_WIDTH / 2 - player.width / 2;
+            player.y = CANVAS_HEIGHT - 130;
+            targetX = CANVAS_WIDTH / 2;
+            player.invulnerableTime = 0;
+            enemySpeedMultiplier = 1.0;
+
+            spawnEnemies();
+            
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            gameActive = true;
+        }
+
+        // 敵集団（カピバラの天敵たち）の生成 (縦長画面幅 600px に合わせ中央寄せ6列に最適化)
+        function spawnEnemies() {
+            enemies = [];
+            const rows = 5;
+            const cols = 6; // 縦長なので横方向を6列にコンパクト化
+            const gapX = 75;
+            const gapY = 53;
+            
+            // 6列を横幅600pxに中央寄せするためのスタート位置計算
+            // 列の合計幅 = 5 * 75 + 46 = 421px
+            const startX = (CANVAS_WIDTH - ((cols - 1) * gapX + 46)) / 2;
+            const startY = 80;
+
+            enemySpeedMultiplier = 1.0 + (wave - 1) * 0.18;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let enemyType = 'snake';
+                    let isGold = false;
+                    let hp = 1;
+                    let points = 10;
+
+                    if (r === 0) {
+                        enemyType = 'condor';
+                        isGold = true;
+                        hp = 2;
+                        points = 50;
+                    } else if (r === 1) {
+                        enemyType = 'jaguar';
+                        points = 30;
+                    } else if (r === 2) {
+                        enemyType = 'alligator';
+                        points = 20;
+                    } else {
+                        enemyType = 'snake';
+                        points = 10;
+                    }
+
+                    enemies.push({
+                        x: startX + c * gapX,
+                        y: startY + r * gapY,
+                        width: 46,
+                        height: 46,
+                        type: enemyType,
+                        points: points,
+                        isGold: isGold,
+                        hp: hp,
+                        originalHp: hp
+                    });
+                }
+            }
+            enemyDirection = 1;
+        }
+
+        // UFOの温泉バブルレーザー発射！
+        function firePlayerBullet() {
+            if (isPaused) return;
+            const now = Date.now();
+            if (now - player.lastShotTime >= player.shootCooldown) {
+                bullets.push({
+                    x: player.x + player.width / 2,
+                    y: player.y,
+                    radius: 11,
+                    speed: 11,
+                    pulse: 0
+                });
+                player.lastShotTime = now;
+                playSound('shoot');
+            }
+        }
+
+        // 被弾
+        function triggerPlayerHit() {
+            if (player.invulnerableTime > 0 || isPaused) return;
+
+            lives--;
+            playSound('damage');
+            player.invulnerableTime = 90;
+
+            createSplashes(player.x + player.width / 2, player.y + player.height / 2, '#ef4444', 12);
+            createSplashes(player.x + player.width / 2, player.y + player.height / 2, '#38bdf8', 10);
+
+            if (lives <= 0) {
+                gameOver(false);
+            }
+        }
+
+        // 特殊効果の作成
+        function createSplashes(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                splashParticles.push(new SplashParticle(x, y, color));
+            }
+        }
+
+        // Canvas上にレトロ風にハートマークを描画する関数
+        function drawHeart(ctx, x, y, size, fillStyle) {
+            ctx.save();
+            ctx.fillStyle = fillStyle;
+            ctx.beginPath();
+            ctx.moveTo(x, y + size / 4);
+            ctx.quadraticCurveTo(x, y, x - size / 2, y);
+            ctx.quadraticCurveTo(x - size, y, x - size, y + size * 0.4);
+            ctx.quadraticCurveTo(x - size, y + size * 0.75, x, y + size * 1.2);
+            ctx.quadraticCurveTo(x + size, y + size * 0.75, x + size, y + size * 0.4);
+            ctx.quadraticCurveTo(x, y, x + size / 2, y);
+            ctx.quadraticCurveTo(x, y, x, y + size / 4);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 終了判定
+        function gameOver(isClear) {
+            gameActive = false;
+            playSound(isClear ? 'clear' : 'gameover');
+
+            endScore.textContent = score;
+            endWave.textContent = `耐え抜いたウェーブ: ${wave}`;
+
+            if (isClear) {
+                endTitle.textContent = "任務皆伝！";
+                endTitle.className = "text-3xl font-bold font-pixel text-yellow-500 mb-2";
+                endSub.textContent = "カピバラ温泉は無敵の平和を手に入れた！";
+            } else {
+                endTitle.textContent = "防衛失敗";
+                endTitle.className = "text-3xl font-bold font-pixel text-red-500 mb-2";
+                endSub.textContent = "天敵の野生攻撃にカピバラ温泉を制圧されてしまった...";
+            }
+
+            endScreen.classList.remove('hidden');
+        }
+
+        // --- アップデートロジック ---
+        function update() {
+            if (!gameActive || isPaused) return;
+
+            // --- 1. UFOのホバリング移動 (キーボード ＆ 指追従のハイブリッド) ---
+            let movedWithKey = false;
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                player.x -= player.speed;
+                movedWithKey = true;
+            }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                player.x += player.speed;
+                movedWithKey = true;
+            }
+
+            // 指タッチ/ドラッグ操作中、目標位置へイージング(スムーズ)移動
+            if (isTouching && !movedWithKey) {
+                const targetPlayerX = targetX - player.width / 2;
+                player.x += (targetPlayerX - player.x) * 0.22;
+            }
+
+            if (player.x < 10) player.x = 10;
+            if (player.x > CANVAS_WIDTH - player.width - 10) {
+                player.x = CANVAS_WIDTH - player.width - 10;
+            }
+
+            if (player.invulnerableTime > 0) {
+                player.invulnerableTime--;
+            }
+
+            // --- 2. 自動連射 ---
+            if (keys[' '] || isTouching) {
+                firePlayerBullet();
+            }
+
+            // --- 3. 温泉バブル弾の移動 ---
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.y -= b.speed;
+                b.pulse += 0.2;
+                if (b.y < -15) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // --- 4. 敵（天敵）の移動 ---
+            let changeDir = false;
+            let currentSpeed = enemyBaseSpeed * enemySpeedMultiplier;
+
+            enemies.forEach(enemy => {
+                enemy.x += currentSpeed * enemyDirection;
+                if (enemy.x > CANVAS_WIDTH - enemy.width - 20 || enemy.x < 20) {
+                    changeDir = true;
+                }
+            });
+
+            if (changeDir) {
+                enemyDirection *= -1;
+                enemies.forEach(enemy => {
+                    enemy.y += 24; 
+                });
+            }
+
+            enemies.forEach(enemy => {
+                if (enemy.y + enemy.height >= player.y + 15) {
+                    triggerPlayerHit();
+                    enemy.y -= 60;
+                }
+            });
+
+            // --- 5. 天敵の攻撃 ---
+            enemies.forEach(enemy => {
+                let attackProb = 0.0006 * enemySpeedMultiplier;
+                if (enemy.type === 'condor') attackProb = 0.0012 * enemySpeedMultiplier;
+                
+                if (Math.random() < attackProb) {
+                    enemyBullets.push({
+                        x: enemy.x + enemy.width / 2,
+                        y: enemy.y + enemy.height,
+                        width: 14,
+                        height: 14,
+                        speed: 4.8 * (1.0 + wave * 0.05),
+                        type: enemy.type
+                    });
+                }
+            });
+
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const eb = enemyBullets[i];
+                eb.y += eb.speed;
+                if (eb.y > CANVAS_HEIGHT + 15) {
+                    enemyBullets.splice(i, 1);
+                }
+            }
+
+            // --- 6. アイテムの移動・収集判定と華やかエフェクトトリガー ---
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                item.y += item.speed;
+                item.rot += 0.025; 
+
+                if (item.x < player.x + player.width &&
+                    item.x + item.width > player.x &&
+                    item.y < player.y + player.height &&
+                    item.y + item.height > player.y) {
+                    
+                    // アイテム獲得（ライフ復活）
+                    if (lives < 3) {
+                        lives++;
+                        createSplashes(item.x + item.width/2, item.y + item.height/2, '#facc15', 12);
+                        createSplashes(item.x + item.width/2, item.y + item.height/2, '#ec4899', 8);
+                        
+                        floatingTexts.push({
+                            x: player.x + player.width / 2,
+                            y: player.y - 10,
+                            text: "+1 LIFE 💖",
+                            color: '#ec4899',
+                            scale: 1.2,
+                            alpha: 1.0
+                        });
+                    } else {
+                        // ライフMAX時はボーナススコア
+                        score += 150;
+                        createSplashes(item.x + item.width/2, item.y + item.height/2, '#fbbf24', 12);
+                        createSplashes(item.x + item.width/2, item.y + item.height/2, '#22d3ee', 8);
+                        
+                        floatingTexts.push({
+                            x: player.x + player.width / 2,
+                            y: player.y - 10,
+                            text: "+150 BONUS ⭐",
+                            color: '#fbbf24',
+                            scale: 1.2,
+                            alpha: 1.0
+                        });
+                    }
+                    items.splice(i, 1);
+                    continue;
+                }
+
+                if (item.y > CANVAS_HEIGHT + 10) {
+                    items.splice(i, 1);
+                }
+            }
+
+            // 浮遊エフェクトテキストのアップデート
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y -= 1.2;
+                ft.alpha -= 0.02;
+                if (ft.alpha <= 0) {
+                    floatingTexts.splice(i, 1);
+                }
+            }
+
+            // --- 7. 衝突判定（UFOバブル vs 天敵軍） ---
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    if (b.x + b.radius > enemy.x &&
+                        b.x - b.radius < enemy.x + enemy.width &&
+                        b.y + b.radius > enemy.y &&
+                        b.y - b.radius < enemy.y + enemy.height) {
+                        
+                        bullets.splice(i, 1);
+                        enemy.hp--;
+                        
+                        createSplashes(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#e0f2fe', 6);
+
+                        if (enemy.hp <= 0) {
+                            score += enemy.points;
+                            
+                            let splashColor = '#38bdf8';
+                            if (enemy.type === 'condor') splashColor = '#fbbf24';
+                            if (enemy.type === 'jaguar') splashColor = '#f97316';
+                            
+                            createSplashes(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, splashColor, 15);
+                            createSplashes(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#bae6fd', 8);
+                            
+                            // ライフ回復アイテム（極上柚子）ドロップ抽選 (出現確率3%)
+                            if (Math.random() < 0.03) {
+                                items.push({
+                                    x: enemy.x + enemy.width/2 - 15,
+                                    y: enemy.y + enemy.height,
+                                    width: 30,
+                                    height: 30,
+                                    speed: 2.2,
+                                    rot: Math.random() * Math.PI
+                                });
+                            }
+
+                            enemies.splice(j, 1);
+                            playSound('explosion');
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // --- 8. 衝突判定（敵の野生攻撃 vs カピバラUFO） ---
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const eb = enemyBullets[i];
+                if (eb.x < player.x + player.width &&
+                    eb.x + eb.width > player.x &&
+                    eb.y < player.y + player.height &&
+                    eb.y + eb.height > player.y) {
+                    
+                    enemyBullets.splice(i, 1);
+                    triggerPlayerHit();
+                }
+            }
+
+            // --- 9. ウェーブクリア判定 ---
+            if (enemies.length === 0) {
+                wave++;
+                playSound('clear');
+                spawnEnemies();
+            }
+
+            // --- 10. 温泉の浮かび柚子のアニメーション ---
+            onsenYuzus.forEach(yuzu => {
+                yuzu.angle += yuzu.speed;
+                yuzu.currentY = yuzu.y + Math.sin(yuzu.angle) * yuzu.amp;
+            });
+        }
+
+        // --- 描画 ---
+        function draw() {
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // 夜空＆温泉郷の落ち着いた背景グラデーション
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+            bgGrad.addColorStop(0, '#020617');
+            bgGrad.addColorStop(0.6, '#0f172a'); 
+            bgGrad.addColorStop(1, '#1c1917');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // 1. 霧・温泉の湯気
+            steamParticles.forEach(p => {
+                if (!isPaused) p.update();
+                p.draw();
+            });
+
+            // 2. 画面下部の「控えめでスッキリとした露天風呂」 (縦長画面の最下部 CANVAS_HEIGHT 基準で動的描画)
+            ctx.save();
+            const onsenGrad = ctx.createLinearGradient(0, CANVAS_HEIGHT - 70, 0, CANVAS_HEIGHT);
+            onsenGrad.addColorStop(0, '#0c4a6e'); 
+            onsenGrad.addColorStop(1, '#0284c7');
+            ctx.fillStyle = onsenGrad;
+            ctx.globalAlpha = 0.7;
+            ctx.fillRect(0, CANVAS_HEIGHT - 70, CANVAS_WIDTH, 70);
+
+            // お湯の静かな波 (CANVAS_HEIGHT 基準)
+            ctx.fillStyle = '#38bdf8';
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            let waveOffset = Date.now() * 0.0015;
+            ctx.moveTo(0, CANVAS_HEIGHT - 70);
+            for (let x = 0; x <= CANVAS_WIDTH; x += 40) {
+                let y = (CANVAS_HEIGHT - 69) + Math.sin(x * 0.01 + waveOffset) * 2;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(CANVAS_WIDTH, CANVAS_HEIGHT);
+            ctx.lineTo(0, CANVAS_HEIGHT);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // 温泉の浮かび柚子
+            onsenYuzus.forEach(yuzu => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(yuzu.x, yuzu.currentY, yuzu.size, 0, Math.PI * 2);
+                ctx.fillStyle = '#facc15';
+                ctx.fill();
+                ctx.strokeStyle = '#ca8a04';
+                ctx.lineWidth = 0.8;
+                ctx.stroke();
+
+                ctx.strokeStyle = '#bae6fd';
+                ctx.globalAlpha = 0.2;
+                ctx.beginPath();
+                ctx.arc(yuzu.x, yuzu.currentY, yuzu.size * (1.3 + Math.sin(yuzu.angle)*0.1), 0, Math.PI*2);
+                ctx.stroke();
+                ctx.restore();
+            });
+
+            // 岩風呂のふち石 (CANVAS_HEIGHT 基準)
+            ctx.save();
+            ctx.fillStyle = '#383535'; 
+            ctx.strokeStyle = '#1c1917';
+            ctx.lineWidth = 1.5;
+            
+            const rockPositions = [0, 50, 110, 170, 230, 290, 350, 410, 470, 530, 590, 650]; // 600px 幅に削減
+            rockPositions.forEach((rx, idx) => {
+                let ry = (CANVAS_HEIGHT - 64) + (idx % 2 === 0 ? 1 : -1);
+                let rRadius = 16 + (idx % 3) * 3;
+                ctx.beginPath();
+                ctx.arc(rx, ry, rRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+            ctx.restore();
+
+            // 温泉看板 (CANVAS_HEIGHT 基準 & 右寄りに再配置)
+            ctx.save();
+            ctx.globalAlpha = 0.75;
+            ctx.fillStyle = '#542605';
+            ctx.fillRect(CANVAS_WIDTH - 75, CANVAS_HEIGHT - 115, 4, 50); // 支柱
+            ctx.fillStyle = '#e5c09a';
+            ctx.strokeStyle = '#2d1502';
+            ctx.lineWidth = 1.5;
+            ctx.fillRect(CANVAS_WIDTH - 95, CANVAS_HEIGHT - 135, 45, 26); // 板
+            ctx.strokeRect(CANVAS_WIDTH - 95, CANVAS_HEIGHT - 135, 45, 26);
+            ctx.fillStyle = '#2d1502';
+            ctx.font = 'bold 7px sans-serif';
+            ctx.fillText("極楽♨", CANVAS_WIDTH - 86, CANVAS_HEIGHT - 119);
+            ctx.restore();
+
+            // 3. ゲームのスコア情報、ライフ情報、一時停止ボタンをCanvasに直接描画
+            // スコア・WAVE描画 (左上)
+            ctx.save();
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = 'bold 18px "DotGothic16", sans-serif';
+            ctx.strokeStyle = '#020617';
+            ctx.lineWidth = 3.5;
+            ctx.strokeText(`SCORE: ${String(score).padStart(4, '0')}`, 20, 35);
+            ctx.fillText(`SCORE: ${String(score).padStart(4, '0')}`, 20, 35);
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.strokeText(`WAVE: ${wave}`, 170, 35);
+            ctx.fillText(`WAVE: ${wave}`, 170, 35);
+            ctx.restore();
+
+            // 一時停止ボタン描画 (右上・pauseBtnAreaに準拠)
+            ctx.save();
+            ctx.fillStyle = isPaused ? '#059669' : '#44403c'; 
+            ctx.strokeStyle = isPaused ? '#10b981' : '#57534e';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            const r = 6;
+            const x = pauseBtnArea.x, y = pauseBtnArea.y, w = pauseBtnArea.width, h = pauseBtnArea.height;
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // ボタンテキスト＆アイコン
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px "DotGothic16", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const btnText = isPaused ? "▶ 再開" : "⏸ 一時停止";
+            ctx.fillText(btnText, x + w / 2, y + h / 2 + 1);
+            ctx.restore();
+
+            // ライフ(ハートマーク)描画 (一時停止ボタンの左隣)
+            ctx.save();
+            for (let i = 0; i < 3; i++) {
+                const heartX = CANVAS_WIDTH - 180 - (i * 30);
+                const heartY = 24;
+                const heartSize = 9;
+                const fillStyle = (i < lives) ? '#ef4444' : '#57534e'; 
+                drawHeart(ctx, heartX, heartY, heartSize, fillStyle);
+            }
+            ctx.restore();
+
+            // 4. ゲーム中アクティブグラフィックの描画
+            if (gameActive) {
+
+                // 天敵たちの描画
+                enemies.forEach(enemy => {
+                    let img = snakeImg;
+                    if (enemy.type === 'condor') img = condorImg;
+                    else if (enemy.type === 'jaguar') img = jaguarImg;
+                    else if (enemy.type === 'alligator') img = alligatorImg;
+
+                    ctx.drawImage(img, enemy.x, enemy.y, enemy.width, enemy.height);
+
+                    if (enemy.hp < enemy.originalHp) {
+                        ctx.fillStyle = '#ef4444';
+                        ctx.fillRect(enemy.x, enemy.y - 6, enemy.width, 4);
+                        ctx.fillStyle = '#10b981';
+                        ctx.fillRect(enemy.x, enemy.y - 6, enemy.width * (enemy.hp / enemy.originalHp), 4);
+                    }
+                });
+
+                // カピバラUFOの「温泉バブルレーザー」の描画
+                bullets.forEach(b => {
+                    ctx.save();
+                    ctx.beginPath();
+                    const waveRadius = b.radius + Math.sin(b.pulse) * 1.5;
+                    ctx.arc(b.x, b.y, waveRadius, 0, Math.PI * 2);
+                    
+                    const bubbleGrad = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, waveRadius);
+                    bubbleGrad.addColorStop(0, '#ffffff');
+                    bubbleGrad.addColorStop(0.3, '#bae6fd');
+                    bubbleGrad.addColorStop(0.85, '#38bdf8');
+                    bubbleGrad.addColorStop(1, '#0284c7');
+                    
+                    ctx.fillStyle = bubbleGrad;
+                    ctx.globalAlpha = 0.85;
+                    ctx.fill();
+
+                    // 温泉マーク
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 1.2;
+                    ctx.globalAlpha = 0.9;
+                    ctx.beginPath();
+                    ctx.moveTo(b.x - 3, b.y + 2);
+                    ctx.quadraticCurveTo(b.x - 1, b.y - 1, b.x - 2, b.y - 3);
+                    ctx.moveTo(b.x, b.y + 2);
+                    ctx.quadraticCurveTo(b.x + 2, b.y - 1, b.x + 1, b.y - 3);
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.ellipse(b.x - 0.5, b.y + 3, 4, 0.8, 0, 0, Math.PI*2);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fill();
+
+                    ctx.restore();
+                });
+
+                // 天敵たちの攻撃
+                enemyBullets.forEach(eb => {
+                    ctx.save();
+                    if (eb.type === 'snake') {
+                        ctx.fillStyle = '#a855f7'; 
+                        ctx.beginPath();
+                        ctx.arc(eb.x + eb.width/2, eb.y + eb.height/2, 4, 0, Math.PI*2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.moveTo(eb.x + eb.width/2 - 4, eb.y + eb.height/2);
+                        ctx.lineTo(eb.x + eb.width/2, eb.y);
+                        ctx.lineTo(eb.x + eb.width/2 + 4, eb.y + eb.height/2);
+                        ctx.fill();
+                    } else if (eb.type === 'jaguar' || eb.type === 'alligator') {
+                        ctx.strokeStyle = '#f97316'; 
+                        ctx.lineWidth = 1.8;
+                        ctx.beginPath();
+                        ctx.moveTo(eb.x, eb.y);
+                        ctx.lineTo(eb.x + 8, eb.y + eb.height);
+                        ctx.moveTo(eb.x + 4, eb.y);
+                        ctx.lineTo(eb.x + 12, eb.y + eb.height);
+                        ctx.moveTo(eb.x - 4, eb.y);
+                        ctx.lineTo(eb.x + 4, eb.y + eb.height);
+                        ctx.stroke();
+                    } else {
+                        ctx.fillStyle = '#94a3b8';
+                        ctx.beginPath();
+                        ctx.ellipse(eb.x + eb.width/2, eb.y + eb.height/2, 3, 7, 0.4, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                });
+
+                // 回復アイテムの描画
+                items.forEach(item => {
+                    ctx.save();
+                    ctx.translate(item.x + item.width/2, item.y + item.height/2);
+                    ctx.rotate(item.rot);
+                    ctx.drawImage(heartYuzuImg, -item.width/2, -item.height/2, item.width, item.height);
+                    ctx.restore();
+                });
+
+                // カピバラUFOの描画
+                if (player.invulnerableTime === 0 || Math.floor(player.invulnerableTime / 5) % 2 === 0) {
+                    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+                }
+
+                // 飛び散る水しぶき
+                for (let i = splashParticles.length - 1; i >= 0; i--) {
+                    const sp = splashParticles[i];
+                    if (!isPaused) sp.update();
+                    sp.draw();
+                    if (sp.alpha <= 0) {
+                        splashParticles.splice(i, 1);
+                    }
+                }
+
+                // ポップアップ浮遊テキストのエフェクト描画
+                floatingTexts.forEach(ft => {
+                    ctx.save();
+                    ctx.globalAlpha = ft.alpha;
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = ft.color;
+                    ctx.font = `bold ${Math.floor(18 * ft.scale)}px "DotGothic16", sans-serif`;
+                    // 視認性のためのアウトライン
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText(ft.text, ft.x, ft.y);
+                    ctx.fillText(ft.text, ft.x, ft.y);
+                    ctx.restore();
+                });
+            }
+
+            // 5. 一時停止(ポーズ)時のブラックアウト＆テキスト表示
+            if (isPaused) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+                ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#22d3ee'; 
+                ctx.font = 'bold 42px "DotGothic16", sans-serif';
+                ctx.fillText("PAUSE", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 20);
+
+                ctx.fillStyle = '#e2e8f0';
+                ctx.font = '18px "DotGothic16", sans-serif';
+                ctx.fillText("一時停止中", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
+                
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '14px sans-serif';
+                ctx.fillText("Pキー または 右上のボタンタップで再開", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
+                ctx.restore();
+            }
+        }
+
+        // --- 全体一括駆動ループ ---
+        function animate() {
+            draw();
+            if (gameActive) {
+                update();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        // --- イベントバインド ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+
+        // 初期起動
+        initSteam();
+        animate();
+
+    </script>
+</body>
+</html>
